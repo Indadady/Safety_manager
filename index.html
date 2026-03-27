@@ -46,6 +46,14 @@
             position: relative;
             box-sizing: border-box;
             color: #000;
+            /* 페이지 분할 핵심 설정 */
+            page-break-after: always;
+        }
+
+        /* 마지막 페이지는 여백 제거 */
+        .a4-page:last-child {
+            margin-bottom: 0;
+            page-break-after: auto;
         }
 
         .doc-title {
@@ -63,7 +71,7 @@
         .info-table th, .info-table td { border: 1px solid #000; padding: 14px; }
         .info-table th { background-color: #f8fafc; font-weight: bold; text-align: center; width: 125px; }
         
-        /* 결재/서명란 영역 - 도장 선명도 일관성 확보 */
+        /* 결재/서명란 영역 */
         .signature-block {
             margin-top: 60px;
             text-align: center;
@@ -89,7 +97,7 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            mix-blend-mode: multiply; /* 흰색 배경 제거 및 인주 겹침 효과 */
+            mix-blend-mode: multiply;
             opacity: 1.0; 
             filter: contrast(1.4) saturate(1.4) brightness(1.05); 
             z-index: 10;
@@ -155,11 +163,38 @@
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
         }
 
+        /* 인쇄 최적화 설정 */
         @media print {
-            body { background-color: white !important; }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            body { 
+                background-color: white !important; 
+                overflow: visible !important;
+                height: auto !important;
+            }
             .no-print { display: none !important; }
-            .preview-container { background-color: white; height: auto; padding: 0; overflow: visible; }
-            .a4-page { box-shadow: none; margin: 0; padding: 25mm 20mm; page-break-after: always; width: 210mm; min-height: 297mm; }
+            main { display: block !important; height: auto !important; overflow: visible !important; }
+            .preview-container { 
+                background-color: white; 
+                height: auto; 
+                padding: 0; 
+                overflow: visible !important;
+                display: block !important;
+            }
+            .a4-page { 
+                box-shadow: none; 
+                margin: 0; 
+                padding: 25mm 20mm; 
+                width: 210mm; 
+                min-height: 297mm;
+                page-break-after: always;
+                overflow: hidden;
+            }
+            .a4-page:last-child {
+                page-break-after: auto;
+            }
         }
     </style>
 </head>
@@ -176,7 +211,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
-            PDF 내보내기
+            전체 문서 인쇄 (총 2장)
         </button>
     </header>
 
@@ -185,11 +220,11 @@
         <aside class="no-print sidebar w-[380px] p-6 shadow-inner">
             <h2 class="text-sm font-bold text-slate-500 mb-4 flex items-center gap-2">
                 <span class="w-1 h-4 bg-blue-600 rounded-full"></span>
-                기본 정보 및 서류 설정
+                서류 공통 설정
             </h2>
 
             <div class="input-group">
-                <label class="input-label">발행 법인 및 대표자 인감 선택</label>
+                <label class="input-label">발행 법인 및 대표자 인감</label>
                 <select id="repSelect" onchange="updateDocs()" class="font-bold">
                     <option value="lee">(주)투어메이커 / 이재명 대표 (법인인감)</option>
                     <option value="heo">투어메이커 / 허나연 대표 (대표인감)</option>
@@ -204,6 +239,11 @@
             <div class="input-group">
                 <label class="input-label">발주처 (수신 기관명)</label>
                 <input type="text" id="clientName" value="문곡중학교장" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">서류 발행일자</label>
+                <input type="text" id="issueDate" value="2026. 03. 28" oninput="updateDocs()">
             </div>
 
             <h2 class="text-sm font-bold text-slate-500 mt-8 mb-4 flex items-center gap-2">
@@ -242,14 +282,13 @@
                 <input type="text" id="docPurpose" value="기관 제출용 및 과업 수행 인력 증빙용" oninput="updateDocs()">
             </div>
 
-            <div class="input-group">
-                <label class="input-label">서류 발행일자</label>
-                <input type="text" id="issueDate" value="2026. 03. 28" oninput="updateDocs()">
+            <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 leading-relaxed">
+                <strong>인쇄 팁:</strong> 크롬 인쇄 설정에서 '배경 그래픽'을 체크하면 도장이 더 선명하게 출력됩니다. 페이지는 자동으로 나누어집니다.
             </div>
         </aside>
 
         <!-- 오른쪽 프리뷰 영역 -->
-        <section class="preview-container flex-1">
+        <section class="preview-container flex-1" id="print-area">
             
             <!-- 페이지 1: 현장 안전관리자 임명장 -->
             <div class="a4-page">
@@ -359,13 +398,13 @@
                 companyName: '(주)투어메이커',
                 repName: '(주)투어메이커 / 대표 이 재 명',
                 stampUrl: 'https://blogger.googleusercontent.com/img/a/AVvXsEiweUsH71be_Y3skDUBOVzZE0M4HnXmgllJq7c1JgatYy5eROHYdkvE9rMIcqVl0DQ2ypgr8fkZSQclgQjWOk8yZA5wiF326Ldf4KTrfd_YEsD2zZjyqsRLS65uv50SLZcLFqIvwZly49lEN3sheIMq4HV_VWLs1irf4o8g3-ajXCA7CaOlSvpKCT4Q2XA=s16000',
-                stampWidth: '95px' // 법인인감 사이즈 확대
+                stampWidth: '95px'
             },
             'heo': {
                 companyName: '투어메이커',
                 repName: '투어메이커 / 대표 허 나 연',
                 stampUrl: 'https://blogger.googleusercontent.com/img/a/AVvXsEhaeZ9zwjTzPpbIrnTc1ByxZm6_3p_KEVnbrXQOGpsB5siQDZ-9dbtEceldUpwqPBMvVcRcZiFymvYPqb9CIB-N_G-_jHz0cUHOmDuj_ooirThNY_DlHu3mC6_mXaz7qyx4pjcq721ggwvO4ZuyNIfR5KbKrGEgxJiJ2OCCNohQ1OsW_Fnflub-AoPqz3Y=w640-h584',
-                stampWidth: '220px' // 개인인감 사이즈 확대
+                stampWidth: '220px'
             }
         };
 

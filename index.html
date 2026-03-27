@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>투어메이커 안전관리자 및 재직증명서 발급 툴</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Analytics (투어메이커 기본 GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JLH9GD9SVR"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-JLH9GD9SVR');
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        
+        body { 
+            font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; 
+            background-color: #f1f5f9;
+        }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* A4 프리뷰 스타일 */
+        .preview-container {
+            background-color: #e2e8f0;
+            overflow-y: auto;
+            height: calc(100vh - 64px);
+            padding: 40px 0;
+        }
+
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 0 auto 30px auto;
+            padding: 25mm 20mm;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            position: relative;
+            box-sizing: border-box;
+            color: #000;
+        }
+
+        .doc-title {
+            font-size: 32px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 12px;
+            margin-bottom: 50px;
+            text-decoration: underline;
+            text-underline-position: under;
+            text-underline-offset: 8px;
+        }
+
+        .info-table { width: 100%; border-collapse: collapse; margin-bottom: 35px; font-size: 16px; }
+        .info-table th, .info-table td { border: 1px solid #000; padding: 14px; }
+        .info-table th { background-color: #f8fafc; font-weight: bold; text-align: center; width: 125px; }
+        
+        /* 결재/서명란 영역 - 도장 선명도 일관성 확보 */
+        .signature-block {
+            margin-top: 60px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stamp-container {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            text-align: center;
+            line-height: 40px;
+        }
+
+        .stamp-img {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            mix-blend-mode: multiply; /* 흰색 배경 제거 및 인주 겹침 효과 */
+            opacity: 1.0; 
+            filter: contrast(1.4) saturate(1.4) brightness(1.05); 
+            z-index: 10;
+            pointer-events: none;
+            max-width: none;
+        }
+
+        .client-area {
+            position: absolute;
+            bottom: 35mm;
+            left: 20mm;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .bottom-logo {
+            position: absolute;
+            bottom: 30mm;
+            right: 20mm;
+        }
+
+        .bottom-logo img {
+            width: 170px;
+            opacity: 0.9;
+        }
+
+        /* 제어 패널 스타일 */
+        .sidebar {
+            height: calc(100vh - 64px);
+            overflow-y: auto;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .input-group {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        @media print {
+            body { background-color: white !important; }
+            .no-print { display: none !important; }
+            .preview-container { background-color: white; height: auto; padding: 0; overflow: visible; }
+            .a4-page { box-shadow: none; margin: 0; padding: 25mm 20mm; page-break-after: always; width: 210mm; min-height: 297mm; }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- 상단 헤더 -->
+    <header class="no-print h-16 bg-white border-b flex items-center justify-between px-6 z-50 shadow-sm">
+        <div class="flex items-center gap-4">
+            <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgHfgIX70O5k6Anuo0UgALIdaG9jSga9auHu3uyz0uEirylGPAJnjN_qQbvEGMUvPqUQf_g9FMNUHRxlDcUBf4vZ3Mpy4TnA9WxbmzWYK11gt2zuy_Irl4wctNFjcjLyPo0GPXV792o_J7L9guRMuDfeC1gy7USwywjYbECZgzcsHybuGRRAXAnO1eNmP8/s320/logo.png" class="h-8">
+            <div class="h-4 w-px bg-gray-300"></div>
+            <h1 class="text-lg font-bold text-slate-700">안전관리자 및 재직증명서 발급 툴</h1>
+        </div>
+        <button onclick="window.print()" class="bg-slate-800 hover:bg-black text-white px-5 py-2 rounded-md font-bold text-sm flex items-center gap-2 transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            PDF 내보내기
+        </button>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden">
+        <!-- 왼쪽 사이드바 (데이터 입력) -->
+        <aside class="no-print sidebar w-[380px] p-6 shadow-inner">
+            <h2 class="text-sm font-bold text-slate-500 mb-4 flex items-center gap-2">
+                <span class="w-1 h-4 bg-blue-600 rounded-full"></span>
+                기본 정보 및 서류 설정
+            </h2>
+
+            <div class="input-group">
+                <label class="input-label">발행 법인 및 대표자 인감 선택</label>
+                <select id="repSelect" onchange="updateDocs()" class="font-bold">
+                    <option value="lee">(주)투어메이커 / 이재명 대표 (법인인감)</option>
+                    <option value="heo">투어메이커 / 허나연 대표 (대표인감)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">용역명 (행사명)</label>
+                <input type="text" id="eventName" value="2026학년도 문곡중학교 국외현장체험학습" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">발주처 (수신 기관명)</label>
+                <input type="text" id="clientName" value="문곡중학교장" oninput="updateDocs()">
+            </div>
+
+            <h2 class="text-sm font-bold text-slate-500 mt-8 mb-4 flex items-center gap-2">
+                <span class="w-1 h-4 bg-blue-600 rounded-full"></span>
+                대상 인력 정보
+            </h2>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="input-group mb-0">
+                    <label class="input-label">성명</label>
+                    <input type="text" id="empName" value="조 혁" oninput="updateDocs()">
+                </div>
+                <div class="input-group mb-0">
+                    <label class="input-label">직위</label>
+                    <input type="text" id="empTitle" value="이사" oninput="updateDocs()">
+                </div>
+            </div>
+
+            <div class="input-group mt-3">
+                <label class="input-label">생년월일</label>
+                <input type="text" id="empBirth" value="1900. 00. 00" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">부여 역할 (임명장)</label>
+                <input type="text" id="empRole" value="현장 운영 총괄 디렉터" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">재직 기간</label>
+                <input type="text" id="empPeriod" value="2023. 01. 02 ~ 현재" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">발급 용도 (재직증명서용)</label>
+                <input type="text" id="docPurpose" value="기관 제출용 및 과업 수행 인력 증빙용" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">서류 발행일자</label>
+                <input type="text" id="issueDate" value="2026. 03. 28" oninput="updateDocs()">
+            </div>
+        </aside>
+
+        <!-- 오른쪽 프리뷰 영역 -->
+        <section class="preview-container flex-1">
+            
+            <!-- 페이지 1: 현장 안전관리자 임명장 -->
+            <div class="a4-page">
+                <div class="doc-title">현장안전관리자 임명장</div>
+                
+                <table class="info-table mt-12">
+                    <tr>
+                        <th>소 속</th>
+                        <td><span class="out-companyName">(주)투어메이커</span></td>
+                        <th>직 위</th>
+                        <td><span class="out-empTitle">이사</span></td>
+                    </tr>
+                    <tr>
+                        <th>성 명</th>
+                        <td><span class="out-empName">조 혁</span></td>
+                        <th>생년월일</th>
+                        <td><span class="out-empBirth">1900. 00. 00</span></td>
+                    </tr>
+                    <tr>
+                        <th>부여 역할</th>
+                        <td colspan="3" class="font-bold text-blue-800"><span class="out-empRole">현장 운영 총괄 디렉터</span></td>
+                    </tr>
+                </table>
+
+                <div class="text-lg leading-loose mt-8 mb-16 px-4 text-justify">
+                    상기 인을 <strong>「<span class="out-eventName">2026학년도 문곡중학교 국외현장체험학습</span>」</strong>의 현장 운영 및 안전 관리 총괄 책임자로 임명합니다. <br><br>
+                    본 인력은 행사 기간 중 학생들의 동선 안전 통제, 비상 상황 시 현지 대응망 연동, 그리고 당사의 선진 비상 관제 시스템인 <strong>T-safe24의 현장 통제 및 프로그램 운영 전반</strong>을 총괄 수행합니다.
+                </div>
+
+                <div class="text-center text-xl mb-16 font-medium">
+                    <span class="out-issueDate">2026. 03. 28</span>
+                </div>
+
+                <div class="signature-block">
+                    <span>계약자 : <span class="out-repName">(주)투어메이커 / 대표 이 재 명</span></span>
+                    <span class="stamp-container">
+                        (인)
+                        <img src="" class="stamp-img out-stamp" alt="직인">
+                    </span>
+                </div>
+
+                <div class="client-area">
+                    <span class="out-clientName">문곡중학교장</span> 귀하
+                </div>
+                <div class="bottom-logo">
+                    <img src="https://blogger.googleusercontent.com/img/a/AVvXsEitI-Z-hD82keOJ1AqHw-VTZjpw2U-O5UjtV9h3zblyG0wjsVfBWe9X9o0Q_Spctrt7krkd9qXO0xKTmGJLw4gyMZrRqpshKMFttnyx6OcC8-IGz3XLUZpGQOnRqVdol8jz5HuoDLqsEifnVRhcjUJHm13Sz8JrX9aPswMNUwZPvGtJEnQjhc2PiXlo-B8" alt="Tourmaker Logo">
+                </div>
+            </div>
+
+            <!-- 페이지 2: 재직증명서 -->
+            <div class="a4-page">
+                <div class="doc-title">재 직 증 명 서</div>
+                
+                <table class="info-table mt-12">
+                    <tr>
+                        <th>성 명</th>
+                        <td><span class="out-empName">조 혁</span></td>
+                        <th>생년월일</th>
+                        <td><span class="out-empBirth">1900. 00. 00</span></td>
+                    </tr>
+                    <tr>
+                        <th>소 속</th>
+                        <td><span class="out-companyName">(주)투어메이커</span></td>
+                        <th>직 위</th>
+                        <td><span class="out-empTitle">이사</span></td>
+                    </tr>
+                    <tr>
+                        <th>재직기간</th>
+                        <td colspan="3"><span class="out-empPeriod">2023. 01. 02 ~ 현재</span></td>
+                    </tr>
+                    <tr>
+                        <th>발급용도</th>
+                        <td colspan="3"><span class="out-docPurpose">기관 제출용 및 과업 수행 인력 증빙용</span></td>
+                    </tr>
+                </table>
+
+                <div class="text-lg leading-loose mt-12 mb-20 text-center">
+                    위 사람은 당사에 상기와 같이 재직하고 있음을 증명합니다.
+                </div>
+
+                <div class="text-center text-xl mb-16 font-medium">
+                    <span class="out-issueDate">2026. 03. 28</span>
+                </div>
+
+                <div class="signature-block">
+                    <span>발급기관 : <span class="out-repName">(주)투어메이커 / 대표 이 재 명</span></span>
+                    <span class="stamp-container">
+                        (인)
+                        <img src="" class="stamp-img out-stamp" alt="직인">
+                    </span>
+                </div>
+
+                <div class="client-area">
+                    <span class="out-clientName">문곡중학교장</span> 귀하
+                </div>
+                <div class="bottom-logo">
+                    <img src="https://blogger.googleusercontent.com/img/a/AVvXsEitI-Z-hD82keOJ1AqHw-VTZjpw2U-O5UjtV9h3zblyG0wjsVfBWe9X9o0Q_Spctrt7krkd9qXO0xKTmGJLw4gyMZrRqpshKMFttnyx6OcC8-IGz3XLUZpGQOnRqVdol8jz5HuoDLqsEifnVRhcjUJHm13Sz8JrX9aPswMNUwZPvGtJEnQjhc2PiXlo-B8" alt="Tourmaker Logo">
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        const repData = {
+            'lee': {
+                companyName: '(주)투어메이커',
+                repName: '(주)투어메이커 / 대표 이 재 명',
+                stampUrl: 'https://blogger.googleusercontent.com/img/a/AVvXsEiweUsH71be_Y3skDUBOVzZE0M4HnXmgllJq7c1JgatYy5eROHYdkvE9rMIcqVl0DQ2ypgr8fkZSQclgQjWOk8yZA5wiF326Ldf4KTrfd_YEsD2zZjyqsRLS65uv50SLZcLFqIvwZly49lEN3sheIMq4HV_VWLs1irf4o8g3-ajXCA7CaOlSvpKCT4Q2XA=s16000',
+                stampWidth: '95px' // 법인인감 사이즈 확대
+            },
+            'heo': {
+                companyName: '투어메이커',
+                repName: '투어메이커 / 대표 허 나 연',
+                stampUrl: 'https://blogger.googleusercontent.com/img/a/AVvXsEhaeZ9zwjTzPpbIrnTc1ByxZm6_3p_KEVnbrXQOGpsB5siQDZ-9dbtEceldUpwqPBMvVcRcZiFymvYPqb9CIB-N_G-_jHz0cUHOmDuj_ooirThNY_DlHu3mC6_mXaz7qyx4pjcq721ggwvO4ZuyNIfR5KbKrGEgxJiJ2OCCNohQ1OsW_Fnflub-AoPqz3Y=w640-h584',
+                stampWidth: '220px' // 개인인감 사이즈 확대
+            }
+        };
+
+        function updateDocs() {
+            // 모든 텍스트 필드 업데이트
+            const fields = ['eventName', 'clientName', 'empName', 'empBirth', 'empTitle', 'empRole', 'empPeriod', 'issueDate', 'docPurpose'];
+            fields.forEach(field => {
+                const el = document.getElementById(field);
+                if(el) {
+                    const val = el.value;
+                    document.querySelectorAll('.out-' + field).forEach(out => out.innerText = val);
+                }
+            });
+
+            // 대표자 정보 및 도장 업데이트
+            const selectedRep = document.getElementById('repSelect').value;
+            const data = repData[selectedRep];
+            
+            document.querySelectorAll('.out-companyName').forEach(el => el.innerText = data.companyName);
+            document.querySelectorAll('.out-repName').forEach(el => el.innerText = data.repName);
+            
+            const stamps = document.querySelectorAll('.out-stamp');
+            stamps.forEach(el => {
+                el.src = data.stampUrl;
+                el.style.width = data.stampWidth;
+            });
+        }
+
+        window.onload = updateDocs;
+    </script>
+</body>
+</html>

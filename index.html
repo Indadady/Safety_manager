@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOURMAKER 스마트 산출내역서 (제주/국내전용)</title>
+    
+    <!-- 구글 애널리틱스 (GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JLH9GD9SVR"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-JLH9GD9SVR');
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body { font-family: 'Pretendard', 'Malgun Gothic', sans-serif; background-color: #f1f5f9; color: #0f172a; overflow: hidden; }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* 레이아웃 (좌측 입력, 우측 미리보기) */
+        .app-container { display: flex; height: calc(100vh - 56px); width: 100vw; }
+
+        /* [좌측] 입력 패널 */
+        .input-panel {
+            flex: 4; min-width: 480px; max-width: 550px; background-color: white;
+            border-right: 1px solid #cbd5e1; overflow-y: auto; padding: 24px;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.03); z-index: 10;
+        }
+
+        /* [우측] 미리보기/편집 패널 */
+        .preview-panel {
+            flex: 6; background-color: #e2e8f0; overflow-y: auto; padding: 40px 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* A4 용지 기본 세팅 */
+        .a4-sheet { 
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            padding: 15mm 12mm;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            border-radius: 4px;
+            display: block;
+            position: relative;
+            box-sizing: border-box;
+        }
+        .a4-sheet:last-child { margin-bottom: 0; }
+
+        /* 웹 편집 모드에서 일정표 하단 잘림 방지 */
+        #page-1 {
+            height: auto;
+            overflow: visible;
+            transition: min-height 0.18s ease, box-shadow 0.18s ease;
+        }
+        #page-1.preview-expanded {
+            box-shadow: 0 14px 32px rgba(15,23,42,0.12);
+        }
+        #page-1::after {
+            content: '';
+            display: block;
+            height: 18mm;
+        }
+        .itinerary-overflow-note {
+            display: none;
+            margin-top: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #92400e;
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 8px 10px;
+            line-height: 1.45;
+        }
+        #page-1.preview-expanded .itinerary-overflow-note {
+            display: block;
+        }
+
+        /* 테이블 기본 */
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        th, td {
+            border: 1px solid #94a3b8;
+            padding: 6px;
+            word-break: break-word;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #f8fafc;
+            font-weight: 700;
+            color: #1e293b;
+            text-align: center;
+        }
+
+        /* 테이블 테두리 디자인 */
+        .itinerary-table { border-top: 3px solid #0f172a; border-bottom: 3px solid #0f172a; margin-top: 10px; }
+        .itinerary-table tbody td { vertical-align: middle !important; }
+
+        .cost-table { border-top: 3px solid #0f172a; border-bottom: 3px solid #0f172a; margin-top: 10px; }
+        .cost-table tbody td { vertical-align: middle; }
+        .subtotal-row td { background-color: #f1f5f9; font-weight: bold; border-bottom: 2px solid #64748b; }
+
+        /* 입력 폼 요소 */
+        .form-section { margin-bottom: 24px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .section-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .section-title::before { content: ''; display: block; width: 4px; height: 16px; border-radius: 2px; background: #2563eb; }
+        .input-label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 4px; }
+        .input-field { width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; font-size: 13px; outline: none; transition: 0.2s; background: white; }
+        .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
+
+        /* 비용 입력 카드 2줄 레이아웃 */
+        .card-box { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; margin-bottom: 10px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: border 0.2s; }
+        .card-box:hover { border-color: #3b82f6; }
+        .btn-remove { position: absolute; top: -8px; right: -8px; color: white; background: #ef4444; border: none; border-radius: 50%; width: 22px; height: 22px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; font-size: 11px; z-index: 5; box-shadow: 0 2px 4px rgba(239,68,68,0.3); }
+        .btn-remove:hover { background: #dc2626; transform: scale(1.1); }
+
+        /* 버튼 */
+        .btn-primary { background: #1e293b; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-primary:hover { background: #0f172a; }
+        .btn-action { background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+
+        /* 인라인 편집기 (div contenteditable) */
+        .edit-input {
+            width: 100%;
+            background: transparent;
+            border: 1px solid transparent;
+            outline: none;
+            font-family: inherit;
+            font-size: inherit;
+            font-weight: inherit;
+            color: inherit;
+            line-height: 1.6;
+            transition: border 0.2s, background 0.2s;
+            border-radius: 4px;
+            padding: 4px;
+            white-space: pre-wrap;
+            word-break: keep-all;
+            min-height: 24px;
+        }
+        .edit-input:hover, .edit-input:focus { border: 1px dashed #93c5fd; background: #eff6ff; }
+
+        /* 툴바 및 액션 버튼 */
+        .preset-btn { font-size: 11px; padding: 4px 10px; border-radius: 4px; font-weight: 700; border: 1px solid #cbd5e1; color: #475569; background: white; cursor: pointer; transition: 0.2s; }
+        .preset-btn:hover, .preset-btn.active { background: #1e293b; color: white; border-color: #1e293b; }
+
+        .action-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; border-radius: 4px; width: 32px; height: 36px; line-height: 1.1; transition: 0.2s; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn-del-row { background: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; } .btn-del-row:hover { background: #ef4444; color: white; }
+        .btn-hotel-row { background: #eff6ff; color: #3b82f6; border: 1px solid #93c5fd; } .btn-hotel-row:hover { background: #3b82f6; color: white; }
+        .btn-poi-row { background: #f0fdf4; color: #10b981; border: 1px solid #6ee7b7; } .btn-poi-row:hover { background: #10b981; color: white; }
+
+        /* 템플릿 관리 영역 */
+        .template-manager { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 24px; }
+        .template-btn { padding: 6px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
+        .btn-tm-save { background: #3b82f6; color: white; } .btn-tm-save:hover { background: #2563eb; }
+        .btn-tm-load { background: #475569; color: white; } .btn-tm-load:hover { background: #334155; }
+        .btn-tm-del { background: white; color: #ef4444; border-color: #fca5a5; } .btn-tm-del:hover { background: #fef2f2; }
+
+        .print-only { display: none; }
+
+        .calc-notice { margin-top: 16px; }
+        .calc-powered { margin-top: 12px; }
+
+        /* === 고품질 인쇄(PDF) 대응 === */
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        @media print {
+            html, body {
+                width: auto !important;
+                min-width: 0 !important;
+                height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                overflow: visible !important;
+            }
+
+            body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+                font-size: 12px;
+                line-height: 1.45;
+            }
+
+            .top-nav, .input-panel, .no-print, .action-btn-container, .itinerary-overflow-note {
+                display: none !important;
+            }
+
+            .app-container {
+                height: auto !important;
+                display: block !important;
+                width: 100% !important;
+            }
+
+            .preview-panel {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 auto !important;
+                background: white !important;
+                overflow: visible !important;
+            }
+
+            .a4-sheet {
+                width: 210mm !important;
+                min-height: 297mm !important;
+                height: auto !important;
+                margin: 0 auto !important;
+                padding: 12mm 12mm 14mm 12mm !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                overflow: visible !important;
+                position: relative !important;
+                left: auto !important;
+                right: auto !important;
+                transform: none !important;
+                transform-origin: top center !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid-page !important;
+            }
+            .a4-sheet:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+            }
+
+            #page-1::after {
+                display: none !important;
+            }
+
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                table-layout: fixed !important;
+            }
+
+            thead { display: table-header-group !important; }
+            tfoot { display: table-footer-group !important; }
+
+            table, thead, tbody, tfoot, tr, td, th, p, h1, h2, h3, h4, h5, h6, .subtotal-row {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            .itinerary-table, .cost-table {
+                border-top: 2px solid #000 !important;
+                border-bottom: 2px solid #000 !important;
+                margin-top: 8px !important;
+            }
+
+            th, td {
+                border: 1px solid #000 !important;
+                padding: 5px 6px !important;
+                color: #000 !important;
+            }
+
+            th {
+                background-color: #f3f4f6 !important;
+            }
+
+            .subtotal-row td {
+                background-color: #eef2f7 !important;
+            }
+
+            .edit-input {
+                border: none !important;
+                background: transparent !important;
+                padding: 0 !important;
+                min-height: auto !important;
+            }
+
+            img, svg {
+                max-width: 100% !important;
+                image-rendering: -webkit-optimize-contrast;
+                print-color-adjust: exact !important;
+            }
+
+            a {
+                color: inherit !important;
+                text-decoration: none !important;
+            }
+
+            #page-2 {
+                padding-top: 9mm !important;
+                padding-bottom: 18mm !important;
+            }
+
+            #page-2 .calc-page-title {
+                margin-bottom: 10px !important;
+            }
+
+            #page-2 .cost-table {
+                margin-top: 6px !important;
+            }
+
+            #page-2 .cost-table th,
+            #page-2 .cost-table td {
+                padding-top: 4px !important;
+                padding-bottom: 4px !important;
+            }
+
+            #page-2 .calc-notice {
+                margin-top: 10px !important;
+                padding-top: 0 !important;
+            }
+
+            #page-2 .calc-notice-title {
+                margin-bottom: 3px !important;
+                font-size: 11px !important;
+                line-height: 1.3 !important;
+            }
+
+            #page-2 .calc-notice-text {
+                font-size: 10.5px !important;
+                line-height: 1.4 !important;
+            }
+
+            #page-2 .calc-powered {
+                margin-top: 8px !important;
+                padding-top: 5px !important;
+                padding-bottom: 0 !important;
+            }
+
+            #page-2 .calc-powered p {
+                font-size: 10px !important;
+                line-height: 1.35 !important;
+            }
+
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 상단 네비게이션 -->
+    <div class="top-nav h-[56px] bg-slate-900 text-white px-4 flex justify-between items-center shadow-md z-20 relative">
+        <div class="flex items-center gap-3">
+            <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgHfgIX70O5k6Anuo0UgALIdaG9jSga9auHu3uyz0uEirylGPAJnjN_qQbvEGMUvPqUQf_g9FMNUHRxlDcUBf4vZ3Mpy4TnA9WxbmzWYK11gt2zuy_Irl4wctNFjcjLyPo0GPXV792o_J7L9guRMuDfeC1gy7USwywjYbECZgzcsHybuGRRAXAnO1eNmP8/s320/logo.png" alt="Tourmaker" class="h-6 filter brightness-0 invert">
+            <h1 class="text-[15px] font-bold tracking-wide text-emerald-400 border-l border-slate-600 pl-3">국내(제주) 산출내역 및 일정표 에디터</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-sm font-bold text-slate-300 mr-2">총 견적: <span id="top-total" class="text-amber-400 text-lg font-black tracking-tight">0</span>원</span>
+            <button id="btn-word-download" onclick="exportToWord()" class="btn-action flex items-center gap-1 text-sm hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> 워드 다운로드
+            </button>
+            <button onclick="window.print()" class="btn-primary flex items-center gap-1 text-sm bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">🖨️ 인쇄 (PDF)</button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        
+        <!-- ================= [좌측] 입력 패널 ================= -->
+        <div class="input-panel no-print">
+            <div class="flex justify-between items-center mb-4 border-b-2 border-slate-900 pb-2">
+                <h2 class="text-lg font-black text-slate-800">📋 데이터 입력 및 관리</h2>
+                <button onclick="clearForm()" class="text-xs text-slate-500 hover:text-red-500 font-bold border border-slate-300 px-2 py-1 rounded transition hover:bg-red-50 hover:border-red-300">초기화 ↺</button>
+            </div>
+
+            <!-- 템플릿 관리 영역 -->
+            <div class="template-manager">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-[13px] text-slate-800">💾 견적 템플릿 및 백업</span>
+                    <div class="flex gap-2">
+                        <button onclick="document.getElementById('import-file').click()" class="text-[11px] font-bold text-teal-600 hover:text-teal-800 hover:underline">📂 JSON 불러오기</button>
+                        <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)">
+                        <span class="text-slate-300 text-[10px]">|</span>
+                        <button onclick="exportData()" class="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline">⬇️ JSON 다운로드</button>
+                    </div>
+                </div>
+                <div class="flex gap-2 mb-2">
+                    <select id="preset-select" class="input-field !py-1.5 !text-[12px] flex-1 font-bold text-slate-700">
+                        <option value="">저장된 템플릿 선택...</option>
+                    </select>
+                </div>
+                <div class="flex gap-1.5">
+                    <button onclick="loadPreset()" class="template-btn btn-tm-load flex-1 shadow-sm">내역 불러오기</button>
+                    <button onclick="savePreset()" class="template-btn btn-tm-save flex-1 shadow-sm">현재 상태 저장</button>
+                    <button onclick="deletePreset()" class="template-btn btn-tm-del shadow-sm">삭제</button>
+                </div>
+            </div>
+            
+            <!-- 1. 기본 정보 (황지정보산업고 기본값) -->
+            <div class="form-section">
+                <div class="section-title">1. 문서 기본 정보</div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="col-span-2">
+                        <label class="input-label">출력 업체 (로고/서명)</label>
+                        <select id="inp-agency" class="input-field font-bold text-blue-900" onchange="handleAgencyChange()">
+                            <option value="tourmaker" selected>투어메이커 (로고 출력)</option>
+                            <option value="jeju">(주)제주테마투어 (텍스트 출력 / 워드 허용)</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="input-label">고객명 / 행사명 (합쳐서 표시됨)</label>
+                        <input type="text" id="inp-title" class="input-field font-bold text-slate-900" value="황지정보산업고등학교 제주도 테마여행" oninput="renderHeaderAndCosts()">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="input-label">여행일자 및 기간</label>
+                        <input type="text" id="inp-date" class="input-field" value="2026.09.08 ~ 09.11 (3박 4일)" oninput="renderHeaderAndCosts()">
+                    </div>
+                    <div>
+                        <label class="input-label">인원 기재</label>
+                        <input type="text" id="inp-pax" class="input-field" value="45명기준(학생 40+ 교사5)" oninput="renderHeaderAndCosts()">
+                    </div>
+                    <div>
+                        <label class="input-label">작성 일자 / 비고</label>
+                        <input type="text" id="inp-issue" class="input-field text-blue-700 font-bold" value="2026.03.20 / 국내행사 (환율 미적용)" oninput="renderHeaderAndCosts()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 산출내역 -->
+            <div class="form-section">
+                <div class="section-title">2. 비용 산출 내역</div>
+                
+                <div class="mb-5">
+                    <div class="flex justify-between items-center mb-2 border-b border-indigo-200 pb-1">
+                        <div class="text-[13px] font-bold text-indigo-800">✈️ (1) 항공료 영역</div>
+                    </div>
+                    <div id="cost-flight-list"></div>
+                    <button onclick="addCost('flight')" class="w-full text-[11px] bg-indigo-50 border border-dashed border-indigo-300 text-indigo-600 py-2 rounded font-bold hover:bg-indigo-100 transition shadow-sm">+ 항공 항목 추가</button>
+                </div>
+
+                <div class="mb-5">
+                    <div class="flex justify-between items-center mb-2 border-b border-green-200 pb-1">
+                        <div class="text-[13px] font-bold text-green-800">🌴 (2) 제주(현지) 발생비용 영역</div>
+                    </div>
+                    <div id="cost-local-list"></div>
+                    <button onclick="addCost('local')" class="w-full text-[11px] bg-green-50 border border-dashed border-green-300 text-green-600 py-2 rounded font-bold hover:bg-green-100 transition shadow-sm">+ 현지 발생 항목 추가</button>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-2 border-b border-orange-200 pb-1">
+                        <div class="text-[13px] font-bold text-orange-800">🏢 (3) 국내 발생비용 (수수료 등)</div>
+                    </div>
+                    <div id="cost-domestic-list"></div>
+                    <button onclick="addCost('domestic')" class="w-full text-[11px] bg-orange-50 border border-dashed border-orange-300 text-orange-600 py-2 rounded font-bold hover:bg-orange-100 transition shadow-sm">+ 국내 비용 항목 추가</button>
+                </div>
+            </div>
+            
+            <div class="pb-10 text-center">
+                <p class="text-xs text-slate-500 font-medium">👉 상세 일정 편집은 우측 문서 위에서 직접 타이핑하세요.</p>
+            </div>
+        </div>
+
+        <!-- ================= [우측] 미리보기 및 인라인 편집 패널 ================= -->
+        <div class="preview-panel" id="preview-panel">
+            
+            <!-- [1페이지] 일정표 -->
+            <div class="a4-sheet" id="page-1">
+                <!-- 헤더 영역 -->
+                <div class="flex justify-between items-start border-b-[3px] border-slate-900 pb-4 mb-4">
+                    <div>
+                        <h2 class="text-[28px] font-black text-slate-900 tracking-tight leading-none" id="out-title"></h2>
+                        <div class="flex items-center text-[13px] font-bold text-slate-600 mt-3 tracking-wide">
+                            <span class="bg-slate-100 px-2 py-0.5 rounded border border-slate-300 shadow-sm" id="out-date"></span>
+                            <span class="mx-2 text-slate-300">|</span>
+                            <span id="out-pax"></span>
+                            <span class="mx-2 text-slate-300">|</span>
+                            <span id="out-issue" class="text-blue-700"></span>
+                        </div>
+                    </div>
+                    <div class="text-right pt-1" id="out-agency-1"></div>
+                </div>
+
+                <!-- 일정표 툴바 -->
+                <div class="no-print flex justify-between items-center bg-slate-50 border border-slate-200 p-2 rounded-t mb-[-1px] relative z-10">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[11px] font-bold text-slate-600 mr-1">일정 프리셋:</span>
+                        <button onclick="presetDays(2)" class="preset-btn">1박2일</button>
+                        <button onclick="presetDays(3)" class="preset-btn">2박3일</button>
+                        <button onclick="presetDays(4)" class="preset-btn active">3박4일</button>
+                        <button onclick="presetDays(5)" class="preset-btn">4박5일</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="addDay()" class="text-[11px] font-bold bg-white border border-green-400 text-green-700 hover:bg-green-50 px-3 py-1 rounded transition shadow-sm">+ 일자 추가</button>
+                        <button onclick="applyPOIAll()" class="text-[11px] font-bold bg-teal-50 border border-teal-300 text-teal-800 hover:bg-teal-100 px-3 py-1 rounded transition shadow-sm">✨ 전체 설명 채우기</button>
+                    </div>
+                </div>
+
+                <!-- 일정표 테이블 -->
+                <table class="itinerary-table relative z-0">
+                    <colgroup>
+                        <col width="14%"><col width="68%"><col width="18%">
+                    </colgroup>
+                    <thead>
+                        <tr class="bg-slate-100 border-b-2 border-slate-800">
+                            <th class="py-2.5 text-slate-800 text-[14px]">일자</th>
+                            <th class="py-2.5 text-slate-800 text-[14px]">주요 일정</th>
+                            <th class="py-2.5 text-slate-800 text-[14px]">식사</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itinerary-container">
+                        <!-- JS 렌더링 -->
+                    </tbody>
+                </table>
+                <div class="itinerary-overflow-note no-print">일정 설명이 길어지면 웹 미리보기에서 하단 여백을 자동으로 늘려 잘려 보이지 않게 처리합니다. 인쇄 시에는 실제 A4 기준으로 다시 정렬됩니다.</div>
+            </div>
+
+            <!-- [2페이지] 산출내역서 -->
+            <div class="a4-sheet" id="page-2">
+                <div class="text-center mb-4 calc-page-title">
+                    <h3 class="text-[24px] font-black tracking-[0.2em] text-slate-900 border-b-[2px] border-slate-900 inline-block pb-1 px-8">가격 산출 내역서</h3>
+                    <p class="text-[10px] font-bold text-slate-500 tracking-[0.3em] mt-1">CALCULATION DETAILS</p>
+                </div>
+
+                <!-- 비용 산출 테이블 (비율 최적화 반영: 구분/항목/내용/수량/단가/총금액/비고) -->
+                <table class="cost-table">
+                    <colgroup>
+                        <col width="9%"><col width="13%"><col width="26%"><col width="11%"><col width="13%"><col width="14%"><col width="14%">
+                    </colgroup>
+                    <thead>
+                        <tr class="bg-slate-100 border-b-2 border-slate-800 text-[12px]">
+                            <th class="py-2 text-slate-800 leading-tight font-extrabold">구분</th>
+                            <th class="py-2 text-slate-800 leading-tight font-extrabold">항목</th>
+                            <th class="py-2 text-slate-800 leading-tight font-extrabold">내용</th>
+                            <th class="py-2 text-slate-800 leading-tight font-extrabold whitespace-nowrap">인원/객실수<br>차량대수</th>
+                            <th class="py-2 text-slate-800 leading-tight font-extrabold">원화 단가<br><span class="font-normal text-[10px]">KRW</span></th>
+                            <th class="py-2 text-slate-800 leading-tight font-extrabold">총금액<br><span class="font-normal text-[10px]">KRW</span></th>
+                            <th class="py-2 text-slate-800 leading-tight font-extrabold">비고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-costs">
+                        <!-- JS 렌더링 -->
+                    </tbody>
+                </table>
+                
+                <!-- 하단 안내문 -->
+                <div class="mt-4 pt-1 calc-notice">
+                    <p class="text-[12px] font-bold text-slate-800 mb-1 calc-notice-title">1. 세금계산서 발행 관련 안내문</p>
+                    <p class="text-[11.5px] text-slate-600 leading-relaxed text-justify calc-notice-text">
+                        * 본 위탁용역의 특성상 항공권, 숙박비, 현지교통비 등은 당사가 직접 제공하는 서비스가 아닌, 제 3자와의 거래를 통한 수탁 대행 처리 항목으로 분류됩니다. 따라서, 당사는 전체 계약금액 기준의 세금계산서 발행이 불가하며, 국내 과세 대상 경비 중 <span class="text-red-600 font-bold">알선수수료</span> 등 자체수익에 대해서만 세금계산서를 발행함을 사전 안내드립니다.
+                    </p>
+                </div>
+                <div class="mt-3 text-center border-t border-slate-200 pt-2 pb-0 calc-powered">
+                    <p class="text-[11px] text-slate-500">[System Powered by TOURMAKER] 본 산출내역서는 <a href="http://tourmaker.kr" target="_blank" class="font-bold text-slate-700 hover:underline">투어메이커</a>의 기획과 트래블 테크 기술 제휴로 제작되었습니다.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= 자바스크립트 ================= -->
+    <script>
+        // --- 1. 유틸리티 함수 ---
+        const unFmt = str => {
+            if (!str) return 0;
+            const parsed = parseInt(String(str).replace(/,/g, ''), 10);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+        const fmt = n => (n === 0 || n === '' || isNaN(n)) ? '' : Number(n).toLocaleString();
+        const fmtTotal = n => Number(n || 0).toLocaleString();
+        const esc = str => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // 입력 폼 단가 입력 핸들러
+        function handlePriceInput(el, type, i) {
+            let val = el.value.replace(/[^0-9]/g, '');
+            el.value = val ? Number(val).toLocaleString() : '';
+            costs[type][i]['krw'] = val ? Number(val) : 0;
+            renderHeaderAndCosts();
+        }
+
+        // 입력 폼 수량 입력 핸들러
+        function handleQtyInput(el, type, i) {
+            let val = el.value.replace(/[^0-9.]/g, ''); 
+            el.value = val;
+            costs[type][i]['qty'] = val ? Number(val) : 0;
+            renderHeaderAndCosts();
+        }
+
+        
+        function commitActiveEditable() {
+            const active = document.activeElement;
+            if (active && typeof active.blur === 'function') active.blur();
+        }
+
+        window.addEventListener('beforeprint', () => {
+            commitActiveEditable();
+            document.body.classList.add('print-mode');
+        });
+
+        window.addEventListener('afterprint', () => {
+            document.body.classList.remove('print-mode');
+        });
+
+        function syncItineraryPreviewHeight() {
+            const page = document.getElementById('page-1');
+            const table = page?.querySelector('.itinerary-table');
+            if (!page || !table) return;
+
+            requestAnimationFrame(() => {
+                page.style.minHeight = '297mm';
+                page.classList.remove('preview-expanded');
+
+                const desiredGap = 92; // 약 24mm 정도의 웹 편집용 하단 안전 여백
+                const pageRect = page.getBoundingClientRect();
+                const tableRect = table.getBoundingClientRect();
+                const currentGap = pageRect.bottom - tableRect.bottom;
+
+                if (currentGap < desiredGap) {
+                    const extra = desiredGap - currentGap;
+                    const expandedHeight = page.scrollHeight + extra;
+                    page.style.minHeight = `${Math.ceil(expandedHeight)}px`;
+                    page.classList.add('preview-expanded');
+                }
+            });
+        }
+
+        document.addEventListener('input', (event) => {
+            if (event.target && event.target.closest && event.target.closest('#page-1')) {
+                syncItineraryPreviewHeight();
+            }
+        });
+
+        window.addEventListener('resize', syncItineraryPreviewHeight);
+        window.addEventListener('load', () => setTimeout(syncItineraryPreviewHeight, 120));
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(() => setTimeout(syncItineraryPreviewHeight, 80));
+        }
+
+// --- 2. 기본 상태(State) 데이터 탑재 (황지정보산업고 기준) ---
+        const poiDB = {
+            "에코랜드": "곶자왈 원시림을 달리는 낭만적인 클래식 기차여행",
+            "신화월드테마파크": "캐릭터와 함께하는 짜릿한 놀이기구 테마파크 체험",
+            "아쿠아플라넷": "아시아 최대 규모의 프리미엄 해양 테마파크 (오션아레나 포함)",
+            "메이즈랜드": "세계 최장 길이의 돌, 바람, 여자 테마 미로공원",
+            "성산일출봉": "유네스코 세계자연유산, 바다 위에 우뚝 솟은 장엄한 수성화산",
+            "항공우주박물관": "아시아 최대 규모의 항공우주 테마 교육 및 체험 시설",
+            "오설록": "끝없이 펼쳐진 푸른 녹차밭과 여유로운 티뮤지엄 관람",
+            "이호테우": "제주 바다를 배경으로 한 이국적인 조랑말 등대 인생샷",
+            "가파도": "매년 봄 초록빛 청보리가 일렁이는 평화롭고 아름다운 섬 속의 섬",
+            "우도": "소가 누워있는 모습을 닮은 제주의 아름다운 섬 탐방",
+            "수목원테마파크": "아이스뮤지엄, VR, 그리고 화려한 야간 LED 조명 축제",
+            "카멜리아힐": "사계절 내내 동양 최대 규모의 아름답고 화려한 수목원 포토존",
+            "새별오름": "가을 억새가 장관을 이루는 제주의 대표 오름",
+            "용두암": "용이 포효하며 바다에서 솟구치는 듯한 형상의 웅장한 화산 기암괴석",
+            "제주공항": "설렘 가득한 제주 여행의 시작이자 아쉬운 마무리를 맺는 관문",
+            "9.81 파크": "레이싱 2회 + 서바이벌 1회",
+            "스누피가든": "제주의 자연 속에서 스누피 캐릭터와 함께하는 감성 힐링 정원",
+            "천지연폭포": "하늘과 땅이 만나 이룬 연못, 단정한 자태와 낭만적인 야경의 폭포",
+            "노형수퍼마켙": "흑백 세상에서 화려한 색채로 빠져드는 독특한 미디어아트"
+        };
+
+        let days = [
+            { date: "09/08(화)", hotel: "신신호텔 제주오션", desc: "원주공항 도착 및 탑승수속 (신분증 지참!)\n11:15 출발 : 원주공항 출발(진에어)\n12:30 도착 : 제주공항 도착 (인원파악 후 출발)\n9.81 파크 (레이싱 2회 + 서바이벌 1회)\n숙소 도착 및 체크인 (석식 후 자유시간)", meal: "조: -\n중: 흑우불고기\n석: 호텔식" },
+            { date: "09/09(수)", hotel: "신신호텔 제주오션", desc: "기상 및 조식 후 숙소출발\n함덕해변 서우봉 둘레길\n동쪽송당 동화마을 (감성 정원)\n스누피가든\n에코랜드 (곶자왈 숲속 기차여행)\n숙소 도착 후 석식 및 자유시간", meal: "조: 호텔식\n중: 토종돼지주물럭\n석: 호텔식" },
+            { date: "09/10(목)", hotel: "신신호텔 제주오션", desc: "기상 및 조식 후 숙소출발\n제트보트 체험 (스릴 액티비티)\n카멜리아힐 (동양 최대 수목원)\n오설록 녹차밭 & 티뮤지엄\n천지연폭포 & 새섬\n숙소 도착 후 석식 및 자유시간", meal: "조: 호텔식\n중: 한식뷔페\n석: 호텔식" },
+            { date: "09/11(금)", hotel: "", desc: "기상 및 조식 후 숙소출발\n노형수퍼마켙 (미디어아트 전시)\n이호테우 말등대 & 무지개해안도로\n14:00 제주공항 도착 후 탑승수속\n15:20 출발 : 제주공항 출발(진에어)\n16:35 도착 : 원주공항 도착 후 학교로 이동 및 해산", meal: "조: 호텔식\n중: 제육볶음\n+고등어구이\n석: -" }
+        ];
+
+        let costs = {
+            flight: [
+                { name: "진에어", desc: "원주-제주-원주(학생)", qty: 40, krw: 188200, note: "3월발권기준_유류미변동" },
+                { name: "진에어", desc: "원주-제주-원주(교사)", qty: 5, krw: 188200, note: "3월발권기준_유류미변동" },
+                { name: "항공발권대리점", desc: "발권수수료", qty: 45, krw: 5500, note: "" }
+            ],
+            local: [
+                { name: "숙박료", desc: "신신호텔월드컵점(3박요금)", qty: 45, krw: 180000, note: "조,석식 포함 (2-3인실)" },
+                { name: "차량비", desc: "대형버스 4일", qty: 1, krw: 3520000, note: "제반비용 포함" },
+                { name: "식비", desc: "중식_1일차", qty: 45, krw: 20000, note: "흑우불고기정식" },
+                { name: "식비", desc: "중식_2일차", qty: 45, krw: 13000, note: "토종돼지주물럭" },
+                { name: "식비", desc: "중식_3일차", qty: 45, krw: 0, note: "법원플래터_피자,파스타" },
+                { name: "식비", desc: "중식_4일차", qty: 45, krw: 15000, note: "제육볶음+고등어구이" },
+                { name: "관광지입장료", desc: "981파크", qty: 45, krw: 39500, note: "레이싱2회 + 서바이벌1회" },
+                { name: "관광지입장료", desc: "스누피가든", qty: 40, krw: 14000, note: "학생" },
+                { name: "관광지입장료", desc: "스누피가든", qty: 1, krw: 16000, note: "교사_학생 10명당 1명 무료" },
+                { name: "관광지입장료", desc: "에코랜드", qty: 41, krw: 14000, note: "학생 10명당 1명 무료" },
+                { name: "관광지입장료", desc: "카멜리아힐", qty: 41, krw: 9000, note: "학생 10명당 1명 무료" },
+                { name: "관광지입장료", desc: "천지연폭포", qty: 40, krw: 600, note: "학생" },
+                { name: "관광지입장료", desc: "천지연폭포", qty: 1, krw: 1600, note: "학생 10명당 1명 무료" },
+                { name: "관광지입장료", desc: "노형수퍼마켙", qty: 41, krw: 13000, note: "학생 10명당 1명 무료" },
+                { name: "야간안전요원", desc: "3일_男", qty: 1, krw: 840000, note: "22:00-08:00_8시간근무" }
+            ],
+            domestic: [
+                { name: "보험", desc: "여행자보험", qty: 45, krw: 3000, note: "주민번호 필요" },
+                { name: "공항수송", desc: "공항 왕복 차량료(대형버스)", qty: 1, krw: 1540000, note: "제반비용포함_산아리" },
+                { name: "알선수수료", desc: "운영관리비", qty: 1, krw: 2500000, note: "업체인솔동행" }
+            ]
+        };
+
+        // --- 3. 우측 일정표 렌더링 (구조 붕괴 방지 및 자연스러운 여백) ---
+        function renderItinerary() {
+            const container = document.getElementById('itinerary-container');
+            let html = '';
+
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (parseInt(btn.innerText.charAt(0)) + 1 === days.length && btn.innerText.includes('박')) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // 글자 크기와 여백 최적화
+            const len = days.length;
+            const baseSize = Math.max(12, 16 - (len * 0.7)); 
+            const txtSzStyle = `font-size: ${baseSize}px;`;
+            
+            let pyClass = "py-3";
+            if(len <= 2) pyClass = "py-6";
+            else if(len === 3) pyClass = "py-5";
+            else if(len >= 5) pyClass = "py-2";
+
+            days.forEach((day, i) => {
+                const hotelRow = day.hotel ? `
+                    <tr class="border-t border-slate-300">
+                        <td colspan="2" class="px-5 py-2 bg-blue-50/20">
+                            <div class="flex items-center" style="${txtSzStyle}">
+                                <span class="font-extrabold text-blue-900 tracking-widest mr-2">숙소</span>
+                                <span class="font-bold text-blue-900 mx-2">:</span>
+                                <div class="flex-1 text-left">
+                                    <div contenteditable="true" class="edit-input font-bold text-blue-900 inline-block" onblur="updateDay(${i}, 'hotel', this.innerText)">${esc(day.hotel)}</div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>` : '';
+                
+                const rs = day.hotel ? 2 : 1;
+
+                html += `
+                <tbody class="border-b border-slate-300 last:border-b-0">
+                    <tr class="bg-white">
+                        <td rowspan="${rs}" class="text-center font-extrabold text-slate-900 border-r border-slate-300 align-middle relative ${pyClass}" style="${txtSzStyle}">
+                            <div contenteditable="true" class="edit-input text-center tracking-wide" onblur="updateDay(${i}, 'date', this.innerText)">${esc(day.date)}</div>
+                        </td>
+                        <td class="text-left px-5 leading-relaxed font-medium text-slate-800 border-r border-slate-300 align-middle relative ${pyClass}" style="${txtSzStyle}">
+                            <div class="action-btn-container absolute left-[-42px] top-2 flex flex-col gap-1 w-9 z-10 no-print">
+                                <button onclick="removeDay(${i})" class="action-btn btn-del-row" title="일정 삭제">✕<br>삭제</button>
+                                <button onclick="toggleHotel(${i})" class="action-btn btn-hotel-row" title="숙소란 토글">🏨<br>숙소</button>
+                                <button onclick="applyPOISingle(${i})" class="action-btn btn-poi-row" title="설명 채우기">✨<br>설명</button>
+                            </div>
+                            <div contenteditable="true" class="edit-input w-full text-left" onblur="updateDay(${i}, 'desc', this.innerText)">${esc(day.desc)}</div>
+                        </td>
+                        <td rowspan="${rs}" class="px-3 font-bold text-slate-800 leading-relaxed align-middle ${pyClass}" style="${txtSzStyle}">
+                            <div contenteditable="true" class="edit-input w-full text-center" onblur="updateDay(${i}, 'meal', this.innerText)">${esc(day.meal)}</div>
+                        </td>
+                    </tr>
+                    ${hotelRow}
+                </tbody>`;
+            });
+            container.innerHTML = html;
+            syncItineraryPreviewHeight();
+        }
+
+        // [좌측] 비용 입력 폼 렌더링
+        function renderCostInputs() {
+            ['flight', 'local', 'domestic'].forEach(type => {
+                let html = '';
+                costs[type].forEach((c, i) => {
+                    html += `
+                    <div class="card-box">
+                        <button class="btn-remove" onclick="removeCost('${type}', ${i})" title="삭제">✕</button>
+                        <div class="grid grid-cols-12 gap-1.5 mb-2 pr-2">
+                            <div class="col-span-3">
+                                <input type="text" class="input-field !p-1.5 text-[11px] font-bold text-slate-700 w-full" value="${esc(c.name)}" onchange="updateCost('${type}', ${i}, 'name', this.value)" placeholder="항목명">
+                            </div>
+                            <div class="col-span-4">
+                                <input type="text" class="input-field !p-1.5 text-[11px] w-full" value="${esc(c.desc)}" onchange="updateCost('${type}', ${i}, 'desc', this.value)" placeholder="세부내용">
+                            </div>
+                            <div class="col-span-2">
+                                <input type="text" class="input-field !p-1.5 text-[11px] text-center w-full" value="${c.qty}" oninput="handleQtyInput(this, '${type}', ${i})" placeholder="수량">
+                            </div>
+                            <div class="col-span-3">
+                                <input type="text" class="input-field !p-1.5 text-[11px] text-right font-black text-blue-900 bg-blue-50/30 w-full" value="${fmt(c.krw)}" oninput="handlePriceInput(this, '${type}', ${i})" placeholder="단가">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-1.5 pr-2">
+                            <div>
+                                <input type="text" class="input-field !p-1.5 text-[11px] text-slate-500 w-full" value="${esc(c.note)}" onchange="updateCost('${type}', ${i}, 'note', this.value)" placeholder="비고란 (충분히 길게 입력하세요)">
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                document.getElementById(`cost-${type}-list`).innerHTML = html;
+            });
+        }
+
+        // 공통 헤더 및 비용 7열 렌더링
+        function renderHeaderAndCosts() {
+            const title = document.getElementById('inp-title').value;
+            const date = document.getElementById('inp-date').value;
+            const pax = document.getElementById('inp-pax').value;
+            const issue = document.getElementById('inp-issue').value;
+
+            document.getElementById('out-title').innerText = title;
+            document.getElementById('out-date').innerText = date;
+            document.getElementById('out-pax').innerText = pax;
+            document.getElementById('out-issue').innerText = `작성일: ${issue}`;
+
+            let costHtml = '';
+            let grandTotal = 0;
+            let eventTot = 0;
+
+            function getRowspanMulti(arr, idx, keys) {
+                let span = 1;
+                for (let j = idx + 1; j < arr.length; j++) {
+                    let match = true;
+                    for (let k of keys) {
+                        if (arr[j][k] !== arr[idx][k]) { match = false; break; }
+                    }
+                    if (match) span++; else break;
+                }
+                return span;
+            }
+
+            function renderGroup(groupCatName, dataArr, subtotalLabel) {
+                let subHtml = '';
+                let subTotal = 0;
+                let validItems = dataArr.filter(c => c.name || c.desc);
+                
+                if(validItems.length === 0) return { html: '', sum: 0 };
+
+                validItems.forEach((c, i) => {
+                    const q = Number(c.qty) || 0;
+                    const k = unFmt(c.krw);
+                    const rowTot = q * k;
+                    subTotal += rowTot;
+                    
+                    subHtml += `<tr class="bg-white">`;
+                    
+                    // 1. 대분류
+                    if (i === 0) {
+                        subHtml += `<td rowspan="${validItems.length}" class="text-center font-extrabold bg-slate-50 text-slate-800 tracking-tight text-[12px] align-middle">${groupCatName}</td>`;
+                    }
+                    
+                    // 2. 항목 (이름이 같으면 병합)
+                    if (i === 0 || c.name !== validItems[i-1].name) {
+                        subHtml += `<td rowspan="${getRowspanMulti(validItems, i, ['name'])}" class="text-center font-bold text-slate-800 text-[12px] align-middle break-keep">${esc(c.name)}</td>`;
+                    }
+
+                    // 3. 내용 (이름과 내용이 둘 다 같으면 병합)
+                    if (i === 0 || c.name !== validItems[i-1].name || c.desc !== validItems[i-1].desc) {
+                        subHtml += `<td rowspan="${getRowspanMulti(validItems, i, ['name', 'desc'])}" class="text-center px-3 font-medium text-slate-800 text-[12px] align-middle leading-snug break-keep">${esc(c.desc)}</td>`;
+                    }
+
+                    subHtml += `
+                        <td class="text-center font-bold text-slate-700 text-[12px] align-middle">${fmt(q)}</td>
+                        <td class="text-right pr-3 font-semibold text-slate-800 text-[12px] align-middle">${fmt(k)}</td>
+                        <td class="text-right pr-3 font-extrabold text-slate-900 text-[12px] align-middle">${fmtTotal(rowTot)}</td>
+                        <td class="text-center px-1 text-[11px] text-slate-600 tracking-tight break-keep align-middle">${esc(c.note)}</td>
+                    </tr>`;
+                });
+
+                if(subTotal > 0) {
+                    subHtml += `<tr class="subtotal-row">
+                        <td colspan="5" class="text-center py-2 text-[12px]">${subtotalLabel}</td>
+                        <td class="text-right pr-3 text-[13px] font-black tracking-tight text-slate-800">₩ ${fmtTotal(subTotal)}</td>
+                        <td class="bg-slate-50 border-b-2 border-slate-400"></td>
+                    </tr>`;
+                }
+                return { html: subHtml, sum: subTotal };
+            }
+
+            const flightRes = renderGroup("항공료", costs.flight, "(1) 합계 - 항공료");
+            const localRes = renderGroup("제주(현지)<br>발생비용", costs.local, "(2) 합계 - 제주(현지) 발생 비용");
+            const domesticRes = renderGroup("국내 발생<br>비용", costs.domestic, "(3) 합계 - 국내 발생 비용");
+
+            costHtml += flightRes.html + localRes.html + domesticRes.html;
+            
+            grandTotal = flightRes.sum + localRes.sum + domesticRes.sum;
+            eventTot = localRes.sum + domesticRes.sum;
+
+            costHtml += `
+            <tr class="bg-slate-100 border-t-[3px] border-slate-900">
+                <td colspan="5" class="text-center py-3 font-black text-[13px] tracking-wide text-slate-900">(1)+(2)+(3) 전 체 합 계 금 액</td>
+                <td colspan="2" class="text-right pr-3 font-black text-[15px] text-blue-800 tracking-tighter">₩ ${fmtTotal(grandTotal)}</td>
+            </tr>
+            <tr class="bg-slate-100 border-b-2 border-slate-900">
+                <td colspan="5" class="text-center py-2 font-bold text-[12px] text-slate-600">(2)+(3) 행사 비용 합계 <span class="font-normal text-[10px]">(항공료 제외)</span></td>
+                <td colspan="2" class="text-right pr-3 font-black text-[13px] text-slate-700 tracking-tight">₩ ${fmtTotal(eventTot)}</td>
+            </tr>`;
+
+            document.getElementById('tbody-costs').innerHTML = costHtml;
+            document.getElementById('top-total').innerText = fmtTotal(grandTotal);
+        }
+
+        // --- 4. 업체 선택 및 워드 다운로드 분기 ---
+        function handleAgencyChange() {
+            const agency = document.getElementById('inp-agency').value;
+            const wordBtn = document.getElementById('btn-word-download');
+            
+            if (agency === 'jeju') {
+                wordBtn.classList.remove('hidden');
+            } else {
+                wordBtn.classList.add('hidden');
+            }
+
+            const agencyHtml = agency === 'jeju' 
+                ? `<div class="text-[18px] font-black text-slate-800 tracking-widest mt-1">(주)제주테마투어</div><div class="text-[11px] font-bold text-slate-500 mt-1">담당: 문정희 (010-2645-7524)</div>`
+                : `<a href="http://tourmaker.kr" target="_blank"><img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgHfgIX70O5k6Anuo0UgALIdaG9jSga9auHu3uyz0uEirylGPAJnjN_qQbvEGMUvPqUQf_g9FMNUHRxlDcUBf4vZ3Mpy4TnA9WxbmzWYK11gt2zuy_Irl4wctNFjcjLyPo0GPXV792o_J7L9guRMuDfeC1gy7USwywjYbECZgzcsHybuGRRAXAnO1eNmP8/s320/logo.png" alt="TOURMAKER" class="h-[36px] object-contain float-right mb-1"></a><div class="clear-both"></div>`;
+            
+            document.getElementById('out-agency-1').innerHTML = agencyHtml;
+        }
+
+        function exportToWord() {
+            const title = document.getElementById('inp-title').value.split(' ')[0] || "고객";
+            const sourceHTML = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset='utf-8'>
+                    <title>견적서</title>
+                    <style>
+                        body { font-family: 'Malgun Gothic', 'Dotum', sans-serif; font-size: 10pt; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { border: 1px solid #333; padding: 6px; }
+                        th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <div style="text-align:right; margin-bottom: 10px; font-weight: bold; font-size: 14pt;">(주)제주테마투어</div>
+                    <div style="font-size: 20pt; font-weight: bold; text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom:10px;">상세 일정 및 산출 내역서</div>
+                    
+                    <h3>1. 일정표</h3>
+                    <table>
+                        <tr><th>일자</th><th>주요일정</th><th>식사</th></tr>
+                        ${days.map(d => `<tr><td style="text-align:center; font-weight:bold;">${esc(d.date)}</td><td>${esc(d.desc).replace(/\n/g, '<br>')}</td><td style="font-weight:bold; text-align:center;">${esc(d.meal).replace(/\n/g, '<br>')}</td></tr>${d.hotel ? `<tr><td colspan="3" style="background-color:#f0f8ff; font-weight:bold;">숙소 : ${esc(d.hotel)}</td></tr>` : ''}`).join('')}
+                    </table>
+
+                    <br clear=all style='mso-special-character:line-break;page-break-before:always'>
+
+                    <h3>2. 비용 산출 내역</h3>
+                    <table>
+                        ${document.getElementById('tbody-costs').parentElement.innerHTML.replace(/class="[^"]*"/g, '')}
+                    </table>
+                </body>
+                </html>
+            `;
+            const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url; link.download = `${title}_행사견적_제주테마투어.doc`;
+            document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
+        }
+
+        // --- 5. 이벤트 핸들러 ---
+        function updateDay(i, key, val) { days[i][key] = val; }
+        
+        function addDay() { days.push({ date: "", hotel: "", desc: "", meal: "" }); renderItinerary(); }
+        function removeDay(i) { if(confirm('해당 일자를 삭제하시겠습니까?')) { days.splice(i, 1); renderItinerary(); } }
+        function toggleHotel(i) {
+            if(days[i].hotel) days[i].hotel = "";
+            else days[i].hotel = "신신호텔 제주오션";
+            renderItinerary();
+        }
+        function presetDays(num) {
+            if(!confirm(`현재 일정을 지우고 ${num}일 프리셋으로 초기화하시겠습니까?`)) return;
+            let newDays = [];
+            for(let i=1; i<=num; i++) {
+                newDays.push({ date: `09/0${i+7}(화)`, hotel: i === num ? "" : "신신호텔 제주오션", desc: "", meal: "" });
+            }
+            days = newDays; renderItinerary();
+        }
+
+        function updateCost(type, i, key, val) { costs[type][i][key] = key==='krw'||key==='qty' ? unFmt(val) : val; renderHeaderAndCosts(); }
+        function addCost(type) { costs[type].push({ name: "", desc: "", qty: "", krw: "", note: "" }); renderCostInputs(); renderHeaderAndCosts(); }
+        function removeCost(type, i) { costs[type].splice(i, 1); renderCostInputs(); renderHeaderAndCosts(); }
+
+        // --- 6. 설명 채우기 (POI) ---
+        function applyPOI(text, globalUsed) {
+            let updated = false;
+            let newText = text;
+            const sortedKeys = Object.keys(poiDB).sort((a, b) => b.length - a.length);
+            for (const key of sortedKeys) {
+                const val = poiDB[key];
+                if (newText.includes(key) && !newText.includes(val) && !globalUsed.has(key)) {
+                    const hasTargetDesc = new RegExp(key + '\\s*\\(※', 'g');
+                    if (!hasTargetDesc.test(newText)) {
+                        newText = newText.replace(key, `${key} (※ ${val})`);
+                        globalUsed.add(key);
+                        updated = true;
+                    }
+                }
+            }
+            return { text: newText, updated };
+        }
+
+        function getUsedPOIs() {
+            const used = new Set();
+            days.forEach(d => { for (const [k, v] of Object.entries(poiDB)) { if (d.desc.includes(k) && d.desc.includes(v)) used.add(k); } });
+            return used;
+        }
+
+        function applyPOISingle(i) {
+            const used = getUsedPOIs();
+            const res = applyPOI(days[i].desc, used);
+            if (res.updated) { days[i].desc = res.text; renderItinerary(); } 
+            else alert('해당 일자에 더 이상 추가할 수 있는 관광지 설명이 없거나 이미 적용되었습니다.');
+        }
+
+        function applyPOIAll() {
+            const used = getUsedPOIs();
+            let totalUpdated = false;
+            days.forEach((day, i) => {
+                const res = applyPOI(day.desc, used);
+                if (res.updated) { days[i].desc = res.text; totalUpdated = true; }
+            });
+            if (totalUpdated) renderItinerary();
+            else alert('추가할 설명이 없습니다.');
+        }
+
+        // --- 7. 템플릿 관리 ---
+        function getFormData() {
+            return {
+                agency: document.getElementById('inp-agency').value,
+                title: document.getElementById('inp-title').value,
+                date: document.getElementById('inp-date').value,
+                pax: document.getElementById('inp-pax').value,
+                issue: document.getElementById('inp-issue').value,
+                days: JSON.parse(JSON.stringify(days)),
+                costs: JSON.parse(JSON.stringify(costs))
+            };
+        }
+
+        function setFormData(data) {
+            document.getElementById('inp-agency').value = data.agency || 'tourmaker';
+            document.getElementById('inp-title').value = data.title || '';
+            document.getElementById('inp-date').value = data.date || '';
+            document.getElementById('inp-pax').value = data.pax || '';
+            document.getElementById('inp-issue').value = data.issue || '';
+            if(data.days) days = JSON.parse(JSON.stringify(data.days));
+            if(data.costs) costs = JSON.parse(JSON.stringify(data.costs));
+            
+            handleAgencyChange();
+            renderItinerary();
+            renderCostInputs();
+            renderHeaderAndCosts();
+        }
+
+        function updatePresetDropdown() {
+            const select = document.getElementById('preset-select');
+            const presets = JSON.parse(localStorage.getItem('tourmaker_jeju_presets') || '{}');
+            select.innerHTML = '<option value="">저장된 템플릿 선택...</option>';
+            Object.keys(presets).sort().forEach(key => {
+                const opt = document.createElement('option');
+                opt.value = key; opt.textContent = key;
+                select.appendChild(opt);
+            });
+        }
+
+        function savePreset() {
+            const currentTitle = document.getElementById('inp-title').value || '새 견적';
+            const name = prompt("저장할 템플릿 이름을 입력하세요.", currentTitle + " 산출내역");
+            if(!name) return; 
+            let presets = JSON.parse(localStorage.getItem('tourmaker_jeju_presets') || '{}');
+            presets[name] = getFormData();
+            localStorage.setItem('tourmaker_jeju_presets', JSON.stringify(presets));
+            updatePresetDropdown(); 
+            document.getElementById('preset-select').value = name;
+            alert(`[${name}] 견적이 로컬에 저장되었습니다.`);
+        }
+
+        function loadPreset() {
+            const name = document.getElementById('preset-select').value;
+            if(!name) return alert('불러올 템플릿을 선택해주세요.');
+            const presets = JSON.parse(localStorage.getItem('tourmaker_jeju_presets') || '{}');
+            if(presets[name]) { setFormData(presets[name]); }
+        }
+
+        function deletePreset() {
+            const name = document.getElementById('preset-select').value;
+            if(!name) return;
+            if(confirm(`[${name}] 템플릿을 영구 삭제하시겠습니까?`)) {
+                let presets = JSON.parse(localStorage.getItem('tourmaker_jeju_presets') || '{}');
+                delete presets[name]; 
+                localStorage.setItem('tourmaker_jeju_presets', JSON.stringify(presets));
+                updatePresetDropdown(); 
+                alert('삭제되었습니다.');
+            }
+        }
+
+        function exportData() {
+            const data = localStorage.getItem('tourmaker_jeju_presets');
+            if (!data || data === '{}') return alert('백업할 데이터가 없습니다. 먼저 템플릿을 저장해주세요.');
+            const blob = new Blob([data], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url;
+            a.download = `tourmaker_jeju_presets_${new Date().toISOString().slice(0,10)}.json`;
+            a.click(); URL.revokeObjectURL(url);
+        }
+
+        function importData(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    const currentData = JSON.parse(localStorage.getItem('tourmaker_jeju_presets') || '{}');
+                    localStorage.setItem('tourmaker_jeju_presets', JSON.stringify({ ...currentData, ...json }));
+                    updatePresetDropdown(); 
+                    alert('성공적으로 불러왔습니다.');
+                } catch(err) { alert('불러올 수 없는 파일 형식입니다.'); }
+            };
+            reader.readAsText(file<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>투어메이커 안전관리자 및 재직증명서 발급 툴</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Analytics (투어메이커 기본 GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JLH9GD9SVR"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-JLH9GD9SVR');
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        
+        body { 
+            font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; 
+            background-color: #f1f5f9;
+        }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* A4 프리뷰 스타일 */
+        .preview-container {
+            background-color: #e2e8f0;
+            overflow-y: auto;
+            height: calc(100vh - 64px);
+            padding: 40px 0;
+        }
+
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 0 auto 30px auto;
+            padding: 25mm 20mm;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            position: relative;
+            box-sizing: border-box;
+            color: #000;
+        }
+
+        .doc-title {
+            font-size: 32px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 12px;
+            margin-bottom: 50px;
+            text-decoration: underline;
+            text-underline-position: under;
+            text-underline-offset: 8px;
+        }
+
+        .info-table { width: 100%; border-collapse: collapse; margin-bottom: 35px; font-size: 16px; }
+        .info-table th, .info-table td { border: 1px solid #000; padding: 14px; }
+        .info-table th { background-color: #f8fafc; font-weight: bold; text-align: center; width: 125px; }
+        
+        /* 결재/서명란 영역 - 도장 선명도 일관성 확보 */
+        .signature-block {
+            margin-top: 60px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stamp-container {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            text-align: center;
+            line-height: 40px;
+        }
+
+        .stamp-img {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            mix-blend-mode: multiply; /* 흰색 배경 제거 및 인주 겹침 효과 */
+            opacity: 1.0; 
+            filter: contrast(1.4) saturate(1.4) brightness(1.05); 
+            z-index: 10;
+            pointer-events: none;
+            max-width: none;
+        }
+
+        .client-area {
+            position: absolute;
+            bottom: 35mm;
+            left: 20mm;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .bottom-logo {
+            position: absolute;
+            bottom: 30mm;
+            right: 20mm;
+        }
+
+        .bottom-logo img {
+            width: 170px;
+            opacity: 0.9;
+        }
+
+        /* 제어 패널 스타일 */
+        .sidebar {
+            height: calc(100vh - 64px);
+            overflow-y: auto;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .input-group {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        @media print {
+            body { background-color: white !important; }
+            .no-print { display: none !important; }
+            .preview-container { background-color: white; height: auto; padding: 0; overflow: visible; }
+            .a4-page { box-shadow: none; margin: 0; padding: 25mm 20mm; page-break-after: always; width: 210mm; min-height: 297mm; }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- 상단 헤더 -->
+    <header class="no-print h-16 bg-white border-b flex items-center justify-between px-6 z-50 shadow-sm">
+        <div class="flex items-center gap-4">
+            <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgHfgIX70O5k6Anuo0UgALIdaG9jSga9auHu3uyz0uEirylGPAJnjN_qQbvEGMUvPqUQf_g9FMNUHRxlDcUBf4vZ3Mpy4TnA9WxbmzWYK11gt2zuy_Irl4wctNFjcjLyPo0GPXV792o_J7L9guRMuDfeC1gy7USwywjYbECZgzcsHybuGRRAXAnO1eNmP8/s320/logo.png" class="h-8">
+            <div class="h-4 w-px bg-gray-300"></div>
+            <h1 class="text-lg font-bold text-slate-700">안전관리자 및 재직증명서 발급 툴</h1>
+        </div>
+        <button onclick="window.print()" class="bg-slate-800 hover:bg-black text-white px-5 py-2 rounded-md font-bold text-sm flex items-center gap-2 transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            PDF 내보내기
+        </button>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden">
+        <!-- 왼쪽 사이드바 (데이터 입력) -->
+        <aside class="no-print sidebar w-[380px] p-6 shadow-inner">
+            <h2 class="text-sm font-bold text-slate-500 mb-4 flex items-center gap-2">
+                <span class="w-1 h-4 bg-blue-600 rounded-full"></span>
+                기본 정보 및 서류 설정
+            </h2>
+
+            <div class="input-group">
+                <label class="input-label">발행 법인 및 대표자 인감 선택</label>
+                <select id="repSelect" onchange="updateDocs()" class="font-bold">
+                    <option value="lee">(주)투어메이커 / 이재명 대표 (법인인감)</option>
+                    <option value="heo">투어메이커 / 허나연 대표 (대표인감)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">용역명 (행사명)</label>
+                <input type="text" id="eventName" value="2026학년도 문곡중학교 국외현장체험학습" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">발주처 (수신 기관명)</label>
+                <input type="text" id="clientName" value="문곡중학교장" oninput="updateDocs()">
+            </div>
+
+            <h2 class="text-sm font-bold text-slate-500 mt-8 mb-4 flex items-center gap-2">
+                <span class="w-1 h-4 bg-blue-600 rounded-full"></span>
+                대상 인력 정보
+            </h2>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="input-group mb-0">
+                    <label class="input-label">성명</label>
+                    <input type="text" id="empName" value="조 혁" oninput="updateDocs()">
+                </div>
+                <div class="input-group mb-0">
+                    <label class="input-label">직위</label>
+                    <input type="text" id="empTitle" value="이사" oninput="updateDocs()">
+                </div>
+            </div>
+
+            <div class="input-group mt-3">
+                <label class="input-label">생년월일</label>
+                <input type="text" id="empBirth" value="1900. 00. 00" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">부여 역할 (임명장)</label>
+                <input type="text" id="empRole" value="현장 운영 총괄 디렉터" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">재직 기간</label>
+                <input type="text" id="empPeriod" value="2023. 01. 02 ~ 현재" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">발급 용도 (재직증명서용)</label>
+                <input type="text" id="docPurpose" value="기관 제출용 및 과업 수행 인력 증빙용" oninput="updateDocs()">
+            </div>
+
+            <div class="input-group">
+                <label class="input-label">서류 발행일자</label>
+                <input type="text" id="issueDate" value="2026. 03. 28" oninput="updateDocs()">
+            </div>
+        </aside>
+
+        <!-- 오른쪽 프리뷰 영역 -->
+        <section class="preview-container flex-1">
+            
+            <!-- 페이지 1: 현장 안전관리자 임명장 -->
+            <div class="a4-page">
+                <div class="doc-title">현장안전관리자 임명장</div>
+                
+                <table class="info-table mt-12">
+                    <tr>
+                        <th>소 속</th>
+                        <td><span class="out-companyName">(주)투어메이커</span></td>
+                        <th>직 위</th>
+                        <td><span class="out-empTitle">이사</span></td>
+                    </tr>
+                    <tr>
+                        <th>성 명</th>
+                        <td><span class="out-empName">조 혁</span></td>
+                        <th>생년월일</th>
+                        <td><span class="out-empBirth">1900. 00. 00</span></td>
+                    </tr>
+                    <tr>
+                        <th>부여 역할</th>
+                        <td colspan="3" class="font-bold text-blue-800"><span class="out-empRole">현장 운영 총괄 디렉터</span></td>
+                    </tr>
+                </table>
+
+                <div class="text-lg leading-loose mt-8 mb-16 px-4 text-justify">
+                    상기 인을 <strong>「<span class="out-eventName">2026학년도 문곡중학교 국외현장체험학습</span>」</strong>의 현장 운영 및 안전 관리 총괄 책임자로 임명합니다. <br><br>
+                    본 인력은 행사 기간 중 학생들의 동선 안전 통제, 비상 상황 시 현지 대응망 연동, 그리고 당사의 선진 비상 관제 시스템인 <strong>T-safe24의 현장 통제 및 프로그램 운영 전반</strong>을 총괄 수행합니다.
+                </div>
+
+                <div class="text-center text-xl mb-16 font-medium">
+                    <span class="out-issueDate">2026. 03. 28</span>
+                </div>
+
+                <div class="signature-block">
+                    <span>계약자 : <span class="out-repName">(주)투어메이커 / 대표 이 재 명</span></span>
+                    <span class="stamp-container">
+                        (인)
+                        <img src="" class="stamp-img out-stamp" alt="직인">
+                    </span>
+                </div>
+
+                <div class="client-area">
+                    <span class="out-clientName">문곡중학교장</span> 귀하
+                </div>
+                <div class="bottom-logo">
+                    <img src="https://blogger.googleusercontent.com/img/a/AVvXsEitI-Z-hD82keOJ1AqHw-VTZjpw2U-O5UjtV9h3zblyG0wjsVfBWe9X9o0Q_Spctrt7krkd9qXO0xKTmGJLw4gyMZrRqpshKMFttnyx6OcC8-IGz3XLUZpGQOnRqVdol8jz5HuoDLqsEifnVRhcjUJHm13Sz8JrX9aPswMNUwZPvGtJEnQjhc2PiXlo-B8" alt="Tourmaker Logo">
+                </div>
+            </div>
+
+            <!-- 페이지 2: 재직증명서 -->
+            <div class="a4-page">
+                <div class="doc-title">재 직 증 명 서</div>
+                
+                <table class="info-table mt-12">
+                    <tr>
+                        <th>성 명</th>
+                        <td><span class="out-empName">조 혁</span></td>
+                        <th>생년월일</th>
+                        <td><span class="out-empBirth">1900. 00. 00</span></td>
+                    </tr>
+                    <tr>
+                        <th>소 속</th>
+                        <td><span class="out-companyName">(주)투어메이커</span></td>
+                        <th>직 위</th>
+                        <td><span class="out-empTitle">이사</span></td>
+                    </tr>
+                    <tr>
+                        <th>재직기간</th>
+                        <td colspan="3"><span class="out-empPeriod">2023. 01. 02 ~ 현재</span></td>
+                    </tr>
+                    <tr>
+                        <th>발급용도</th>
+                        <td colspan="3"><span class="out-docPurpose">기관 제출용 및 과업 수행 인력 증빙용</span></td>
+                    </tr>
+                </table>
+
+                <div class="text-lg leading-loose mt-12 mb-20 text-center">
+                    위 사람은 당사에 상기와 같이 재직하고 있음을 증명합니다.
+                </div>
+
+                <div class="text-center text-xl mb-16 font-medium">
+                    <span class="out-issueDate">2026. 03. 28</span>
+                </div>
+
+                <div class="signature-block">
+                    <span>발급기관 : <span class="out-repName">(주)투어메이커 / 대표 이 재 명</span></span>
+                    <span class="stamp-container">
+                        (인)
+                        <img src="" class="stamp-img out-stamp" alt="직인">
+                    </span>
+                </div>
+
+                <div class="client-area">
+                    <span class="out-clientName">문곡중학교장</span> 귀하
+                </div>
+                <div class="bottom-logo">
+                    <img src="https://blogger.googleusercontent.com/img/a/AVvXsEitI-Z-hD82keOJ1AqHw-VTZjpw2U-O5UjtV9h3zblyG0wjsVfBWe9X9o0Q_Spctrt7krkd9qXO0xKTmGJLw4gyMZrRqpshKMFttnyx6OcC8-IGz3XLUZpGQOnRqVdol8jz5HuoDLqsEifnVRhcjUJHm13Sz8JrX9aPswMNUwZPvGtJEnQjhc2PiXlo-B8" alt="Tourmaker Logo">
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        const repData = {
+            'lee': {
+                companyName: '(주)투어메이커',
+                repName: '(주)투어메이커 / 대표 이 재 명',
+                stampUrl: 'https://blogger.googleusercontent.com/img/a/AVvXsEiweUsH71be_Y3skDUBOVzZE0M4HnXmgllJq7c1JgatYy5eROHYdkvE9rMIcqVl0DQ2ypgr8fkZSQclgQjWOk8yZA5wiF326Ldf4KTrfd_YEsD2zZjyqsRLS65uv50SLZcLFqIvwZly49lEN3sheIMq4HV_VWLs1irf4o8g3-ajXCA7CaOlSvpKCT4Q2XA=s16000',
+                stampWidth: '95px' // 법인인감 사이즈 확대
+            },
+            'heo': {
+                companyName: '투어메이커',
+                repName: '투어메이커 / 대표 허 나 연',
+                stampUrl: 'https://blogger.googleusercontent.com/img/a/AVvXsEhaeZ9zwjTzPpbIrnTc1ByxZm6_3p_KEVnbrXQOGpsB5siQDZ-9dbtEceldUpwqPBMvVcRcZiFymvYPqb9CIB-N_G-_jHz0cUHOmDuj_ooirThNY_DlHu3mC6_mXaz7qyx4pjcq721ggwvO4ZuyNIfR5KbKrGEgxJiJ2OCCNohQ1OsW_Fnflub-AoPqz3Y=w640-h584',
+                stampWidth: '220px' // 개인인감 사이즈 확대
+            }
+        };
+
+        function updateDocs() {
+            // 모든 텍스트 필드 업데이트
+            const fields = ['eventName', 'clientName', 'empName', 'empBirth', 'empTitle', 'empRole', 'empPeriod', 'issueDate', 'docPurpose'];
+            fields.forEach(field => {
+                const el = document.getElementById(field);
+                if(el) {
+                    const val = el.value;
+                    document.querySelectorAll('.out-' + field).forEach(out => out.innerText = val);
+                }
+            });
+
+            // 대표자 정보 및 도장 업데이트
+            const selectedRep = document.getElementById('repSelect').value;
+            const data = repData[selectedRep];
+            
+            document.querySelectorAll('.out-companyName').forEach(el => el.innerText = data.companyName);
+            document.querySelectorAll('.out-repName').forEach(el => el.innerText = data.repName);
+            
+            const stamps = document.querySelectorAll('.out-stamp');
+            stamps.forEach(el => {
+                el.src = data.stampUrl;
+                el.style.width = data.stampWidth;
+            });
+        }
+
+        window.onload = updateDocs;
+    </script>
+</body>
+</html>); e.target.value = '';
+        }
+
+        function clearForm() {
+            if(!confirm('모든 입력 데이터를 초기화하시겠습니까?')) return;
+            document.getElementById('inp-title').value = '';
+            document.getElementById('inp-date').value = '';
+            document.getElementById('inp-pax').value = '';
+            
+            days = [{ date: "", hotel: "", desc: "", meal: "" }];
+            costs = { flight: [], local: [], domestic: [] };
+            
+            handleAgencyChange();
+            renderItinerary();
+            renderCostInputs();
+            renderHeaderAndCosts();
+        }
+
+        // --- 8. 초기화 ---
+        window.onload = () => {
+            handleAgencyChange();
+            updatePresetDropdown();
+            renderItinerary();
+            renderCostInputs();
+            renderHeaderAndCosts();
+        };
+
+    </script>
+</body>
+</html>
